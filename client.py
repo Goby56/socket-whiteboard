@@ -3,11 +3,22 @@ from socket import socket as Socket
 import pickle
 
 from server import HEADER_LENGTH, IP, PORT
-
+BUFFER_SIZE = 16
 class Client:
-    def __init__(self) -> None:
+    def __init__(self, ip: str, port: int, buffer_size: int, header_length: int) -> None:
+        self.IP = ip, self.PORT = port, self.BUFFER_SIZE = buffer_size, self.HEADER_LENGTH = header_length
         self.endpoint = Socket(sock.AF_INET, sock.SOCK_STREAM)
         self.endpoint.connect((IP, PORT))
+
+    def recieve_messages(self):
+        full_message = self.endpoint.recv(self.BUFFER_SIZE)
+        message_length = int(msg[:HEADER_LENGTH])
+
+        while len(full_message) - HEADER_LENGTH < message_length:
+            full_message += self.endpoint.recv(self.BUFFER_SIZE)
+        
+        
+        
 
 while True:
     full_msg = b""

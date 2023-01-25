@@ -4,7 +4,7 @@ import pickle
 HEADER_SIZE = 10
 
 endpoint: s.socket = s.socket(s.AF_INET, s.SOCK_STREAM)
-endpoint.connect((s.gethostname(), 6969))
+endpoint.connect((s.gethostname(), 2556))
 
 # while True:
 #     full_msg = b""
