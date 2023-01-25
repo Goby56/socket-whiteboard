@@ -1,7 +1,7 @@
 import socket as sock
 from socket import socket as Socket
-import select
-import threading, sys
+import sys
+import concurrent.futures
 
 HEADER_LENGTH = 10
 MAX_SOCKETS = 12
@@ -19,8 +19,12 @@ PORT = "2556"
 
 class Server:
     def __init__(self, ip: str, port: int, max_sockets: int, header_length: int) -> None:
+        self.IP, self.PORT, self.MAX_SOCKETS, self.HEADER_LENGTH = ip, port, max_sockets, header_length
         self.endpoint = Socket(sock.AF_INET, sock.SOCK_STREAM)
         self.endpoint.listen()
+
+        with concurrent.futures.ThreadPoolExecutor as executor:
+
 
 
         self.clients = {}
@@ -33,8 +37,7 @@ class Server:
         self.clients[adress] = client_endpoint
 
     def main(self):
-        
-        client_threads = [threading.Thread(target=self.accept_clients) for _ ]
+        client_threads = [threading.Thread(target=self.accept_clients) for _ in range(self.MAX_SOCKETS)]
         # TODO: implement threading/async code execution
         # Threading: https://www.youtube.com/watch?v=IEEhzQoKtQU&t=1s 
         # Asyncio: https://www.youtube.com/watch?v=t5Bo1Je9EmE
@@ -45,6 +48,7 @@ if __name__ == "__main__":
 
     while server.is_running:
         try:
+
             server.main()
         except KeyboardInterrupt:
             sys.exit(0)

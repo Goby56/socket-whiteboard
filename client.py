@@ -1,10 +1,13 @@
-import socket as s
+import socket as sock
+from socket import socket as Socket
 import pickle
 
-from server import HEADER_LENGTH
+from server import HEADER_LENGTH, IP, PORT
 
-endpoint: s.socket = s.socket(s.AF_INET, s.SOCK_STREAM)
-endpoint.connect((s.gethostname(), 6969))
+class Client:
+    def __init__(self) -> None:
+        self.endpoint = Socket(sock.AF_INET, sock.SOCK_STREAM)
+        self.endpoint.connect((IP, PORT))
 
 while True:
     full_msg = b""
