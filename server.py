@@ -1,8 +1,10 @@
 import socket as sock
 from socket import socket as Socket
 import select
+import threading, sys
 
 HEADER_LENGTH = 10
+MAX_SOCKETS = 12
 IP = "127.0.0.1"
 PORT = "2556"
 # server_endpoint = Socket(sock.AF_INET, sock.SOCK_STREAM)
@@ -16,25 +18,33 @@ PORT = "2556"
 # clients = {}
 
 class Server:
-    def __init__(self, ip: str, port: int, header_length: int) -> None:
+    def __init__(self, ip: str, port: int, max_sockets: int, header_length: int) -> None:
         self.endpoint = Socket(sock.AF_INET, sock.SOCK_STREAM)
         self.endpoint.listen()
+
+
         self.clients = {}
+        self.client_threads = []
         self.is_running = True
+        
 
-    def register_clients(self):
-        while self.is_running:
-            client_endpoint, adress = self.endpoint.accept()
-            self.clients[adress] = client_endpoint
+    def accept_clients(self):
+        client_endpoint, adress = self.endpoint.accept()
+        self.clients[adress] = client_endpoint
 
-    def main():
+    def main(self):
+        
+        client_threads = [threading.Thread(target=self.accept_clients) for _ ]
         # TODO: implement threading/async code execution
         # Threading: https://www.youtube.com/watch?v=IEEhzQoKtQU&t=1s 
         # Asyncio: https://www.youtube.com/watch?v=t5Bo1Je9EmE
 
     
 if __name__ == "__main__":
-    server = Server(IP, PORT, HEADER_LENGTH)
+    server = Server(IP, PORT, MAX_SOCKETS, HEADER_LENGTH)
 
     while server.is_running:
-        server.main()
+        try:
+            server.main()
+        except KeyboardInterrupt:
+            sys.exit(0)
