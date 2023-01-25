@@ -1,0 +1,16 @@
+{
+    "app": {
+        "dim": [900, 900],
+        "fps": 60
+    },
+    "server": {
+        "ip": "",
+        "port": 2556,
+        "header_length": 10,
+        "max_sockets": 12,
+        "update_frequency": 20
+    },
+    "client": {
+        "buffer_size": 16
+    }
+}
