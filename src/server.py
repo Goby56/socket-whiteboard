@@ -1,82 +1,82 @@
 import socket as sock
-from socket import socket as Socket
-import threading, sys, time, json, os
+import threading, sys, pygame, time, json, pickle
+import env, utils
+import numpy as np
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
+if env.IP == "": env.IP = sock.gethostname()
 
 class Server:
     def __init__(self) -> None:
-        with open(CONFIG_PATH, "r") as f:
-            self.config = json.load(f)
-            self.IP, self.PORT = self.config["server"]["ip"], self.config["server"]["port"]
-            self.MAX_SOCKETS, self.HEADER_LENGTH = self.config["server"]["max_sockets"], self.config["server"]["header_length"]
-            if self.IP == "":
-                self.IP = sock.gethostname()
-        self.endpoint = Socket(sock.AF_INET, sock.SOCK_STREAM)
-        # # Set the socket option level to reuse the adress
+        self.endpoint = sock.socket(sock.AF_INET, sock.SOCK_STREAM)
         self.endpoint.setsockopt(sock.SOL_SOCKET, sock.SO_REUSEADDR, 1)
-        self.endpoint.bind((self.IP, self.PORT))
-        self.endpoint.listen(self.MAX_SOCKETS)
+        self.endpoint.bind((env.IP, env.PORT))
+        self.endpoint.listen(env.MAX_SOCKETS)
+        print(f"Started server on {env.IP}:{env.PORT}")
 
-        print(f"Started server on {self.IP}:{self.PORT}")
-
+        self.whiteboard = np.full(shape=(*env.DIMENSIONS, 3), fill_value=20, dtype=np.uint8)
         self.clients = {}
-        self.client_threads = []
-        self.is_running = True
-        
+
     def accept_clients(self):
         client_endpoint, address = self.endpoint.accept()
         print(f"Connection from {address} has been made.")
 
-        new_thread = threading.Thread(target=self.handle_client, args=(client_endpoint, address))
-        new_thread.start()
-        self.client_threads.append(new_thread)
+        client_thread = threading.Thread(target=self.handle_client, args=(client_endpoint, address))
+        client_thread.start()
 
-        # client_threads = [threading.Thread(target=self.accept_clients) for _ in range(self.MAX_SOCKETS)]
-        # TODO: implement threading/async code execution
-        # Threading: https://www.youtube.com/watch?v=IEEhzQoKtQU&t=1s 
-        # Asyncio: https://www.youtube.com/watch?v=t5Bo1Je9EmE
+        self.clients[address] = {
+            "endpoint": client_endpoint,
+            "thread": client_thread,
+            "point_buffer": []
+        }
 
-    def handle_client(self, client_endpoint: Socket, address: tuple):
-        welcome_msg = self.to_bytes(f"Joined server {self.IP}:{self.PORT}")
-        client_endpoint.send(welcome_msg)
-        
-        # TODO
-        # Send a one time view of the canvas (pygame.PixelArray)
-        # Recieve messages from client
-        # Bunch them togheter in a list
-        # Send list to every connected client
+    def handle_client(self, client_endpoint, address):
+        # client_endpoint.send(utils.encode_ndarray(self.whiteboard))
+        while True:
+            point = self.receive_message(client_endpoint, address)
+            for a in self.clients.keys():
+                self.clients[a][2].extend(point)
 
-        
-        # client_endpoint.recv()
+            point_buffer = self.clients[address][2]
+            client_endpoint.send(utils.encode_message(point_buffer))
+            self.clients[address][2].clear()
 
-        while self.is_running:
-            time.sleep(2)
-            ping_msg = self.to_bytes(f"Status check from {self.IP}:{self.PORT}")
-            client_endpoint.send(ping_msg)
-            print(f"Pinged {address}")
+    def receive_message(self, client_endpoint: sock.socket, address: tuple):
+        header = client_endpoint.recv(env.HEADER_LENGTH) # Grab header
+        msg_len = int(header)
+        # is_message = True if chr(header[0]) == 0 else False
+        reads_required = msg_len // env.BUFFER_SIZE
 
+        _bytes = b""
+        for _ in range(reads_required):
+            _bytes += client_endpoint.recv(env.BUFFER_SIZE)
+        _bytes += client_endpoint.recv(msg_len % env.BUFFER_SIZE)
 
-    def to_bytes(self, message: str):
-        # Prefix of zero if message is string
-        with_header = f"0{(len(message)+1):<{self.HEADER_LENGTH}}" + message
-        return bytes(with_header, "utf-8")
+        # if is_message:
+        #     print(_bytes.decode("utf-8"))
+        #     return
+        # return _bytes
+        return list(_bytes)
 
-    def shutdown(self):
+    # def send_messages(self, client_endpoint: sock.socket, address: tuple):
+    #     self.whiteboard = utils.add_points(self.whiteboard, self.point_stack)
+    #     for point in self.point_stack:
+    #         client_endpoint.send(utils.encode_ndarray(point))
+    #     self.point_stack.clear()
+
+    def terminate(self):
+        self.endpoint.shutdown(sock.SHUT_RDWR)
         self.endpoint.close()
-        for thread in self.client_threads:
-            thread.join()
-        sys.exit()
+        for client in self.cleints.values():
+            client["thread"].join()
+            client["endpoint"].shutdown(sock.SHUT_RDWR)
+            client["endpoint"].close()
 
-    
 if __name__ == "__main__":
     server = Server()
 
     try:
-        while server.is_running:
+        while True:
             server.accept_clients()
-    except KeyboardInterrupt:
-        server.shutdown()
     except Exception as e:
         print(e)
     finally:

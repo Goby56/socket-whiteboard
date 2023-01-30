@@ -1,43 +1,74 @@
 import socket as sock
-from socket import socket as Socket
-import pickle, pygame, json, os
+import pickle, pygame, time, threading, sys, json
+import env, utils
+import numpy as np
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
+if env.IP == "": env.IP = sock.gethostname()
 
 class Client:
     def __init__(self) -> None:
-        with open(CONFIG_PATH, "r") as f:
-            self.config = json.load(f)
-            self.IP, self.PORT = self.config["server"]["ip"], self.config["server"]["port"]
-            self.BUFFER_SIZE, self.HEADER_LENGTH = self.config["client"]["buffer_size"], self.config["server"]["header_length"]
-            if self.IP == "":
-                self.IP = sock.gethostname()
-        self.endpoint = Socket(sock.AF_INET, sock.SOCK_STREAM)
-        self.endpoint.connect((self.IP, self.PORT))
+        self.endpoint = sock.socket(sock.AF_INET, sock.SOCK_STREAM)
+        self.endpoint.connect((env.IP, env.PORT))
+        print(f"Joined server on {env.IP}:{env.PORT}")
 
-        self.has_canvas = False
+        self.whiteboard = np.full(shape=(*env.DIMENSIONS, 3), fill_value=20, dtype=np.uint8)
+        self.point_buffer = []
 
-        self.point_stack = [] # List of coordinates not yet drawn to the canvas
+    def receive_message(self):
+        header = self.endpoint.recv(env.HEADER_LENGTH) # Grab header
+        msg_len = int(header)
+        # is_message = True if chr(header[0]) == 0 else False
+        reads_required = msg_len // env.BUFFER_SIZE + 1
 
-    def listen(self):
-        full_message = self.endpoint.recv(self.BUFFER_SIZE)
-        is_object = int(chr(full_message[0]))
+        _bytes = b""
+        for _ in range(reads_required):
+            _bytes += self.endpoint.recv(env.BUFFER_SIZE)
+        _bytes += self.endpoint.recv(msg_len % env.BUFFER_SIZE)
 
-        message_length = int(full_message[:self.HEADER_LENGTH])
-
-        while len(full_message) - self.HEADER_LENGTH < message_length:
-            full_message += self.endpoint.recv(self.BUFFER_SIZE)
-        message = full_message[self.HEADER_LENGTH:]
-
-        if not is_object: 
-            # prefix of zero if message should be decoded to a string
-            print(message.decode("utf-8"))
-            return
-
-        if not self.has_canvas:
-            self.canvas: pygame.PixelArray = pickle.loads(message)
-            self.has_canvas = True
-            return
+        # if is_message:
+        #     print(_bytes.decode("utf-8"))
+        #     continue
         
-        # otherwise it should be treated as an object
-        self.point_stack.append(pickle.loads(message))
+        self.point_buffer.extend(list(_bytes))
+            # array: np.ndarray = pickle.loads(_bytes)
+            # if array.shape == env.DIMENSIONS:
+            #     self.whiteboard = array
+            #     print("Loaded whiteboard")
+            # else:
+            #     self.point_stack.append(array)
+
+    # def send_messages(self):
+    #         time.sleep(1/env.UPDATE_FREQUENCY)
+
+    #         if pygame.mouse.get_pressed()[0]:
+    #             point = np.array([[230,230,230], list(pygame.mouse.get_pos()), 10], dtype=object)
+    #         self.endpoint.send(utils.encode_ndarray(point))
+    
+# if __name__ == "__main__":
+#     client_endpoint.connect((env.IP, env.PORT))
+#     print(f"Joined the server on {env.IP}:{env.PORT}")
+
+#     try:
+#         listening_thread = threading.Thread(target=recieve_messages)
+#         sending_thread = threading.Thread(target=send_messages)
+#         listening_thread.start()
+#         sending_thread.start()
+#         while True:
+#             for event in pygame.event.get():
+#                 if event.type == pygame.QUIT:
+#                     pygame.quit()
+#                     sys.exit()
+            
+#             whiteboard = utils.add_points(whiteboard, point_stack)
+#             point_stack.clear()
+            
+#             window.blit(utils.surface_from(whiteboard), (0,0))
+#             pygame.display.update()
+#             clock.tick(env.FPS)
+#     except Exception as e:
+#         print(e)
+#     finally:
+#         client_endpoint.shutdown(sock.SHUT_RDWR)
+#         client_endpoint.close()
+#         listening_thread.join()
+#         sending_thread.join()

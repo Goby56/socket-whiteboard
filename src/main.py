@@ -1,49 +1,47 @@
 import pygame, sys, json, threading, os
 from client import Client
 import numpy as np
-
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
+import env, utils
 
 class App:
     def __init__(self) -> None:
-        with open(CONFIG_PATH, "r") as f:
-            self.config = json.load(f)
-            
-        self.DIMENSIONS = self.config["app"]["dim"]
-        self.window = pygame.display.set_mode(self.DIMENSIONS)
+        self.window = pygame.display.set_mode(env.DIMENSIONS)
         self.window.fill((20, 20, 20))
         pygame.display.set_caption("Socket whiteboard")
 
-        self.FPS = self.config["app"]["fps"]
         self.clock = pygame.time.Clock()
         self.is_running = True
 
         self.client = Client()
 
     def main(self):
-        self.event_handler()
-        client_listener = threading.Thread(target=self.client.listen())
-        client_listener.start()
+        receiving_thread = threading.Thread(target=self.client.receive_message)
+        receiving_thread.start()
 
-        # TODO
-        # Draw lines from the client's point stack
-
-        pygame.display.update()
-        app.clock.tick(app.FPS)
-        client_listener.join()
-
-    def event_handler(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                self.client_listener.join()
                 pygame.quit()
                 sys.exit()
 
+        self.clock.tick(env.FPS)
+        receiving_thread.join()
+
+        if pygame.mouse.get_pressed()[0]:
+            x, y = pygame.mouse.get_pos()
+            r, g, b = 200, 200, 200
+            radius = 10
+            point = [x, y, r, g, b, radius]
+            self.client.endpoint.send(utils.encode_list(point))
+
+        self.render()
+        pygame.display.update()
+
     def render(self):
-        if not self.client.has_canvas:
-            self.window.fill((20, 20, 20))
-            # TODO: Add buffering symbol
-            return
-        self.window.blit(self.client.canvas.make_surface(), (0,0))
+        self.client.whiteboard = utils.add_points(self.client.whiteboard, self.client.point_buffer)
+        self.client.point_buffer.clear()
+        
+        self.window.blit(utils.surface_from(self.client.whiteboard), (0,0))
         
 
 if __name__ == "__main__":
