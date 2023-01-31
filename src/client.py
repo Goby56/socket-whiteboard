@@ -1,7 +1,6 @@
 import socket as sock
-import pickle, pygame, time, threading, sys, json
+import threading
 import env, utils
-import numpy as np
 
 if env.IP == "": env.IP = sock.gethostname()
 
@@ -13,8 +12,8 @@ class Client:
 
         self.draw = draw_func
 
-        # self.whiteboard = np.full(shape=(*env.DIM, 3), fill_value=20, dtype=np.uint8)
-        # self.point_buffer = []
+        self.receiving_thread = threading.Thread(target=self.receive_messages)
+        self.receiving_thread.start()
 
     def receive_messages(self):
         while True:
@@ -28,8 +27,8 @@ class Client:
             _bytes += self.endpoint.recv(msg_len % env.BUFFER_SIZE)
 
             self.draw(*utils.decode_message(_bytes))
-            # self.point_buffer.extend(utils.decode_message(_bytes))
     
     def terminate(self):
         self.endpoint.shutdown(sock.SHUT_RDWR)
         self.endpoint.close()
+        self.receiving_thread.join()
