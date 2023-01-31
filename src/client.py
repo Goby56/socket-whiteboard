@@ -16,7 +16,7 @@ class Client:
         # self.whiteboard = np.full(shape=(*env.DIM, 3), fill_value=20, dtype=np.uint8)
         # self.point_buffer = []
 
-    def receive_message(self):
+    def receive_messages(self):
         while True:
             header = self.endpoint.recv(env.HEADER_LENGTH)
             msg_len = int(header)

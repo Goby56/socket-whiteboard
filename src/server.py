@@ -1,7 +1,6 @@
 import socket as sock
-import threading, sys, pygame, time, json, pickle
+import threading
 import env, utils
-import numpy as np
 
 if env.IP == "": env.IP = sock.gethostname()
 
@@ -13,41 +12,32 @@ class Server:
         self.endpoint.listen(env.MAX_SOCKETS)
         print(f"Started server on {env.IP}:{env.PORT}")
 
-        self.whiteboard = np.full(shape=(*env.DIM, 3), fill_value=20, dtype=np.uint8)
         self.clients = {}
+        self.point_buffer = []
 
     def accept_clients(self):
         client_endpoint, address = self.endpoint.accept()
         print(f"Connection from {address} has been made.")
 
-        client_thread = threading.Thread(target=self.handle_client, args=(client_endpoint, address))
+        client_thread = threading.Thread(target=self.handle_client, args=(client_endpoint,))
         client_thread.start()
-
+        
         self.clients[address] = {
             "endpoint": client_endpoint,
-            "thread": client_thread,
-            "point_buffer": []
+            "thread": client_thread
         }
 
-    def handle_client(self, client_endpoint, address):
-        # client_endpoint.send(utils.encode_ndarray(self.whiteboard))
+    def handle_client(self, client_endpoint: sock.socket):
+        for i in range(0, len(self.point_buffer), 6):
+            client_endpoint.send(utils.encode_values(*self.point_buffer[i:i+6]))
         while True:
-            point = self.receive_message(client_endpoint, address)
+            point = self.receive_message(client_endpoint)
+            self.point_buffer.extend(point)
+            for client in self.clients.values():
+                client["endpoint"].send(utils.encode_values(*point))
 
-            for c in self.clients.values():
-                c["endpoint"].send(utils.encode_values(*point))
-
-            # for a in self.clients.keys():
-            #     self.clients[a]["point_buffer"].extend(point)
-
-            # point_buffer = self.clients[address]["point_buffer"]
-            # for i in range(len(point_buffer)):
-            #     client_endpoint.send(utils.encode_values(*point_buffer))
-            # # client_endpoint.send(utils.encode_values(*self.clients[address]["point_buffer"]))
-            # self.clients[address]["point_buffer"].clear()
-
-    def receive_message(self, client_endpoint: sock.socket, address: tuple):
-        header = client_endpoint.recv(env.HEADER_LENGTH) # Grab header
+    def receive_message(self, client_endpoint: sock.socket):
+        header = client_endpoint.recv(env.HEADER_LENGTH)
         msg_len = int(header)
         reads_required = msg_len // env.BUFFER_SIZE
 
