@@ -10,7 +10,7 @@ class App:
         # with open(CONFIG_PATH, "r") as f:
         #     self.config = json.load(f)
             
-        self.window = pygame.display.set_mode(env.DIMENSIONS)
+        self.window = pygame.display.set_mode(env.DIM)
         self.window.fill((20, 20, 20))
         pygame.display.set_caption("Socket whiteboard")
 

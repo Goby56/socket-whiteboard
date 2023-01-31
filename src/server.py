@@ -13,7 +13,7 @@ class Server:
         self.endpoint.listen(env.MAX_SOCKETS)
         print(f"Started server on {env.IP}:{env.PORT}")
 
-        self.whiteboard = np.full(shape=(*env.DIMENSIONS, 3), fill_value=20, dtype=np.uint8)
+        self.whiteboard = np.full(shape=(*env.DIM, 3), fill_value=20, dtype=np.uint8)
         self.clients = {}
 
     def accept_clients(self):
@@ -33,17 +33,22 @@ class Server:
         # client_endpoint.send(utils.encode_ndarray(self.whiteboard))
         while True:
             point = self.receive_message(client_endpoint, address)
-            for a in self.clients.keys():
-                self.clients[a][2].extend(point)
 
-            point_buffer = self.clients[address][2]
-            client_endpoint.send(utils.encode_message(point_buffer))
-            self.clients[address][2].clear()
+            for c in self.clients.values():
+                c["endpoint"].send(utils.encode_values(*point))
+
+            # for a in self.clients.keys():
+            #     self.clients[a]["point_buffer"].extend(point)
+
+            # point_buffer = self.clients[address]["point_buffer"]
+            # for i in range(len(point_buffer)):
+            #     client_endpoint.send(utils.encode_values(*point_buffer))
+            # # client_endpoint.send(utils.encode_values(*self.clients[address]["point_buffer"]))
+            # self.clients[address]["point_buffer"].clear()
 
     def receive_message(self, client_endpoint: sock.socket, address: tuple):
         header = client_endpoint.recv(env.HEADER_LENGTH) # Grab header
         msg_len = int(header)
-        # is_message = True if chr(header[0]) == 0 else False
         reads_required = msg_len // env.BUFFER_SIZE
 
         _bytes = b""
@@ -51,25 +56,15 @@ class Server:
             _bytes += client_endpoint.recv(env.BUFFER_SIZE)
         _bytes += client_endpoint.recv(msg_len % env.BUFFER_SIZE)
 
-        # if is_message:
-        #     print(_bytes.decode("utf-8"))
-        #     return
-        # return _bytes
-        return list(_bytes)
-
-    # def send_messages(self, client_endpoint: sock.socket, address: tuple):
-    #     self.whiteboard = utils.add_points(self.whiteboard, self.point_stack)
-    #     for point in self.point_stack:
-    #         client_endpoint.send(utils.encode_ndarray(point))
-    #     self.point_stack.clear()
+        return utils.decode_message(_bytes)
 
     def terminate(self):
         self.endpoint.shutdown(sock.SHUT_RDWR)
         self.endpoint.close()
         for client in self.cleints.values():
-            client["thread"].join()
             client["endpoint"].shutdown(sock.SHUT_RDWR)
             client["endpoint"].close()
+            client["thread"].join()
 
 if __name__ == "__main__":
     server = Server()

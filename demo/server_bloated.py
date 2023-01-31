@@ -29,7 +29,7 @@ class Server:
         self.is_running = True
         self.clock = pygame.time.Clock()
 
-        self.canvas = pygame.Surface(env.DIMENSIONS)
+        self.canvas = pygame.Surface(env.DIM)
         self.canvas.fill((20,20,20))
         self.point_stack = []
         

@@ -17,7 +17,7 @@ class Client:
         self.endpoint = Socket(sock.AF_INET, sock.SOCK_STREAM)
         self.endpoint.connect((env.IP, env.PORT))
 
-        self.canvas = pygame.Surface(env.DIMENSIONS)
+        self.canvas = pygame.Surface(env.DIM)
         self.canvas.fill((20,20,20))
 
     def listen(self):

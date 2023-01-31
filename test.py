@@ -9,7 +9,11 @@
 # by = pickle.dumps(numpy.array([1,2]))
 # print(pickle.dumps("Hello"))
 
-b = bytes([1, 2])
-print(b)
-l = list(b)
-print(l)
+# b = bytes([1, 2])
+# print(b)
+# l = list(b)
+# print(l)
+
+a = [1,2,3,4,5,6]
+del a[2:4]
+print(a)
