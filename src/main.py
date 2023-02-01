@@ -1,5 +1,6 @@
 import tkinter as tk
 import env, utils, client
+import random
 
 class App:
     def __init__(self) -> None:
@@ -15,43 +16,34 @@ class App:
         self.root.bind("<Motion>", self.send)
 
         self.client = client.Client(self.draw)
-        # self.prev_point = {}
+        self.prev_point = {}
+        self.rgb = [random.randint(0, 255) for _ in range(3)]
 
     def use_brush(self, value: bool, event: tk.Event):
         self.brush_down = value
         if value: self.send(event)
 
     def send(self, event: tk.Event):
-        if not self.brush_down:
-            return
-        x, y, w, r, g, b = event.x, event.y, 10, 200, 200, 200
-        self.client.endpoint.send(utils.encode_values(x, y, w, r, g, b))
+        x, y, size = event.x, event.y, 10
+        self.client.endpoint.send(utils.encode_values(x, y, size, *self.rgb, int(self.brush_down)))
     
-    def draw(self, x, y, r, red, green, blue):
-        # curr_point = (x, y, width, red, green, blue, port)
-        # if port not in self.prev_point.keys():
-        #     self.canvas.create_oval(x-width/2, y-width/2, x+width/2, y+width/2, fill="#e5f2e4", outline="#e5f2e4")
-        #     self.prev_point[port] = x, y
-        #     return
+    def draw(self, x, y, size, red, green, blue, use, port):
+        color = "#%02x%02x%02x" % (red, green, blue) 
+        exists = port in self.prev_point.keys()
+        if exists and not use:
+            del self.prev_point[port]
+        elif exists and use:
+            pre_x, pre_y = self.prev_point[port]
+            self.canvas.create_oval(pre_x-size/2, pre_y-size/2, pre_x+size/2, pre_y+size/2, fill=color, outline=color)
+            self.canvas.create_oval(x-size/2, y-size/2, x+size/2, y+size/2, fill=color, outline=color)
+            self.canvas.create_line(pre_x, pre_y, x, y, width=size, fill=color)
+        elif not exists and use:
+            self.canvas.create_oval(x-size/2, y-size/2, x+size/2, y+size/2, fill=color, outline=color)
+        if use:
+            self.prev_point[port] = x, y
         
-        # pre_x, pre_y = self.prev_point[port]
-        # self.canvas.create_line(pre_x, pre_y, x, y, width=width, fill="#e5f2e4")
-        # self.prev_point[port] = x, y
-        self.canvas.create_oval(x-r, y-r, x+r, y+r, fill="#e5f2e4", outline="#e5f2e4")
-
-# class Point:
-#     clients = {}
-#     def __init__(self) -> None:
-#         pass
-    
-#     @classmethod
-#     def exists(cls, port):
-#         return True if port in cls.clients.keys() else False
-
-#     def add(cls, port)
-        
-
 
 if __name__ == "__main__":
     app = App()
     app.root.mainloop()
+    app.client.shutdown()

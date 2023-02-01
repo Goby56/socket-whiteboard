@@ -8,7 +8,7 @@ class Client:
     def __init__(self, draw_func: callable) -> None:
         self.endpoint = sock.socket(sock.AF_INET, sock.SOCK_STREAM)
         self.endpoint.connect((env.IP, env.PORT))
-        print(f"Joined server on {env.IP}:{env.PORT}")
+        print(f"Connected to {env.IP}:{env.PORT}")
 
         self.draw = draw_func
 
@@ -28,7 +28,7 @@ class Client:
 
             self.draw(*utils.decode_message(_bytes))
     
-    def terminate(self):
+    def shutdown(self):
         self.endpoint.shutdown(sock.SHUT_RDWR)
         self.endpoint.close()
         self.receiving_thread.join()

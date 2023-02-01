@@ -10,34 +10,46 @@ class Server:
         self.endpoint.setsockopt(sock.SOL_SOCKET, sock.SO_REUSEADDR, 1)
         self.endpoint.bind((env.IP, env.PORT))
         self.endpoint.listen(env.MAX_SOCKETS)
-        print(f"Started server on {env.IP}:{env.PORT}")
+        print(f"Listening on {env.IP}:{env.PORT}")
 
         self.clients = {}
         self.point_buffer = []
 
     def accept_clients(self):
         client_endpoint, address = self.endpoint.accept()
-        print(f"Connection from {address} has been made.")
+        print("Connection from", address[1])
 
         client_thread = threading.Thread(target=self.handle_client, args=(client_endpoint, address[1]))
         client_thread.start()
         
-        self.clients[address] = {
+        self.clients[address[1]] = {
             "endpoint": client_endpoint,
             "thread": client_thread
         }
 
     def handle_client(self, client_endpoint: sock.socket, port: int):
-        for i in range(0, len(self.point_buffer), 6):
-            client_endpoint.send(utils.encode_values(*self.point_buffer[i:i+6]))
+        for i in range(0, len(self.point_buffer), 8):
+            client_endpoint.send(utils.encode_values(*self.point_buffer[i:i+8]))
         while True:
-            point = self.receive_message(client_endpoint)
-            self.point_buffer.extend(point)
-            for client in self.clients.values():
-                client["endpoint"].send(utils.encode_values(*point))
+            point = self.receive_message(client_endpoint, port)
+            if point == None: break
+            self.point_buffer.extend([*point, 0])
+            for p, client in self.clients.items():
+                if p == port: # port = 0 to the client being handled
+                    client["endpoint"].send(utils.encode_values(*point, 0))
+                    continue
+                client["endpoint"].send(utils.encode_values(*point, port))
 
-    def receive_message(self, client_endpoint: sock.socket):
-        header = client_endpoint.recv(env.HEADER_LENGTH)
+    def receive_message(self, client_endpoint: sock.socket, port: int):
+        try:
+            header = client_endpoint.recv(env.HEADER_LENGTH)
+            if not header: raise ConnectionResetError
+        except ConnectionResetError:
+            self.disconnect(port)
+            del self.clients[port]
+            print(port, "disconnected")
+            return
+        
         msg_len = int(header)
         reads_required = msg_len // env.BUFFER_SIZE
 
@@ -48,21 +60,19 @@ class Server:
 
         return utils.decode_message(_bytes)
 
-    def terminate(self):
+    def disconnect(self, port: int):
+        self.clients[port]["endpoint"].shutdown(sock.SHUT_RDWR)
+        self.clients[port]["endpoint"].close()
+
+    def shutdown(self):
         self.endpoint.shutdown(sock.SHUT_RDWR)
         self.endpoint.close()
-        for client in self.cleints.values():
-            client["endpoint"].shutdown(sock.SHUT_RDWR)
-            client["endpoint"].close()
-            client["thread"].join()
+        for port in self.clients.keys():
+            self.disconnect(port)
+            self.clients[port]["thread"].join()
 
 if __name__ == "__main__":
     server = Server()
 
-    try:
-        while True:
-            server.accept_clients()
-    except Exception as e:
-        print(e)
-    finally:
-        server.shutdown()
+    while True:
+        server.accept_clients()
