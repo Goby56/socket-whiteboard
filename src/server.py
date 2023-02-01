@@ -19,7 +19,7 @@ class Server:
         client_endpoint, address = self.endpoint.accept()
         print(f"Connection from {address} has been made.")
 
-        client_thread = threading.Thread(target=self.handle_client, args=(client_endpoint,))
+        client_thread = threading.Thread(target=self.handle_client, args=(client_endpoint, address[1]))
         client_thread.start()
         
         self.clients[address] = {
@@ -27,7 +27,7 @@ class Server:
             "thread": client_thread
         }
 
-    def handle_client(self, client_endpoint: sock.socket):
+    def handle_client(self, client_endpoint: sock.socket, port: int):
         for i in range(0, len(self.point_buffer), 6):
             client_endpoint.send(utils.encode_values(*self.point_buffer[i:i+6]))
         while True:
