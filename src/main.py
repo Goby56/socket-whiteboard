@@ -34,9 +34,7 @@ class App:
             del self.prev_point[port]
         elif exists and use:
             pre_x, pre_y = self.prev_point[port]
-            self.canvas.create_oval(pre_x-size/2, pre_y-size/2, pre_x+size/2, pre_y+size/2, fill=color, outline=color)
-            self.canvas.create_oval(x-size/2, y-size/2, x+size/2, y+size/2, fill=color, outline=color)
-            self.canvas.create_line(pre_x, pre_y, x, y, width=size, fill=color)
+            self.canvas.create_line(pre_x, pre_y, x, y, width=size, fill=color, capstyle=tk.ROUND)
         elif not exists and use:
             self.canvas.create_oval(x-size/2, y-size/2, x+size/2, y+size/2, fill=color, outline=color)
         if use:
