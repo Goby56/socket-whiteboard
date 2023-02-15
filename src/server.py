@@ -1,5 +1,5 @@
 import socket as sock
-import threading
+import threading, timeit
 import env, utils
 
 if env.IP == "": env.IP = sock.gethostname()
@@ -10,22 +10,31 @@ class Server:
         self.endpoint.setsockopt(sock.SOL_SOCKET, sock.SO_REUSEADDR, 1)
         self.endpoint.bind((env.IP, env.PORT))
         self.endpoint.listen(env.MAX_SOCKETS)
-        print(f"Listening on {env.IP}:{env.PORT}")
 
-        self.clients = {}
-        self.point_buffer = []
+        print(f"Listening on {env.IP}:{env.PORT}")
+        self.running = True
+
+        self.clients = []
+        self.accepting_thread = threading.Thread(target=self.accept_clients)
+        self.tick_loop()
 
     def accept_clients(self):
-        client_endpoint, address = self.endpoint.accept()
-        print("Connection from", address[1])
+        while self.running:
+            client_endpoint, address = self.endpoint.accept()
+            print("Connection from", address[1])
+            self.clients.append(Client(client_endpoint, address))
 
-        client_thread = threading.Thread(target=self.handle_client, args=(client_endpoint, address[1]))
-        client_thread.start()
-        
-        self.clients[address[1]] = {
-            "endpoint": client_endpoint,
-            "thread": client_thread
-        }
+            client_thread = threading.Thread(target=self.handle_client, args=(client_endpoint, address[1]))
+            client_thread.start()
+
+    def tick_loop(self):
+        pre_t = timeit.default_timer()
+        while self.running:
+            delta = timeit.default_timer() - pre_t
+            if delta * env.TICK_RATE > 1:
+                pre_t = timeit.default_timer()
+                for client in self.clients:
+                    client.tick()
 
     def handle_client(self, client_endpoint: sock.socket, port: int):
         for i in range(0, len(self.point_buffer), 8):
@@ -40,39 +49,43 @@ class Server:
                     continue
                 client["endpoint"].send(utils.encode_values(*point, port))
 
-    def receive_message(self, client_endpoint: sock.socket, port: int):
-        try:
-            header = client_endpoint.recv(env.HEADER_LENGTH)
-            if not header: raise ConnectionResetError
-        except ConnectionResetError:
-            self.disconnect(port)
-            del self.clients[port]
-            print(port, "disconnected")
-            return
-        
-        msg_len = int(header)
-        reads_required = msg_len // env.BUFFER_SIZE
-
-        _bytes = b""
-        for _ in range(reads_required):
-            _bytes += client_endpoint.recv(env.BUFFER_SIZE)
-        _bytes += client_endpoint.recv(msg_len % env.BUFFER_SIZE)
-
-        return utils.decode_message(_bytes)
-
-    def disconnect(self, port: int):
-        self.clients[port]["endpoint"].shutdown(sock.SHUT_RDWR)
-        self.clients[port]["endpoint"].close()
-
     def shutdown(self):
         self.endpoint.shutdown(sock.SHUT_RDWR)
         self.endpoint.close()
-        for port in self.clients.keys():
-            self.disconnect(port)
-            self.clients[port]["thread"].join()
+        for client in self.clients:
+            client.endpoint.shutdown(sock.SHUT_RDWR)
+            client.endpoint.close()
+
+
+class Client:
+    def __init__(self, endpoint: sock.socket, address: sock._RetAddress) -> None:
+        self.endpoint = endpoint
+        self.ip = address[0], self.port = address[1]
+
+        self.events = []
+
+    def tick(self):
+        pass
+
+    def listen(self):
+        while True:
+            try:
+                header = self.endpoint.recv(env.HEADER_LENGTH)
+                if not header: raise ConnectionResetError
+            except ConnectionResetError:
+                self.endpoint.shutdown(sock.SHUT_RDWR)
+                print(self.port, "disconnected")
+                return
+            
+            msg_len = int(header)
+            reads_required = msg_len // env.BUFFER_SIZE
+
+            _bytes = b""
+            for _ in range(reads_required):
+                _bytes += self.endpoint.recv(env.BUFFER_SIZE)
+            _bytes += self.endpoint.recv(msg_len % env.BUFFER_SIZE)
+
+            self.events.append(utils.decode_message(_bytes))
 
 if __name__ == "__main__":
     server = Server()
-
-    while True:
-        server.accept_clients()
