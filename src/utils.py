@@ -1,4 +1,4 @@
-import time, json, glob
+import time, json, glob, re
 import env
 
 def encode_data(data: dict):
@@ -14,6 +14,5 @@ def decode_message(_bytes: bytes):
     return data
 
 def applications_implemented():
-    return [app for app in glob.glob("src/apps/*.py")]
-
-print(applications_implemented())
+    paths = " ".join(glob.glob("src/apps/*.py"))
+    return [app.split(".")[0] for app in re.findall("[a-z]+[.]py", paths)]

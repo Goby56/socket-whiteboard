@@ -43,10 +43,10 @@ class Server:
                 for addr, client in self.clients:
                     self.tick(client["endpoint"], addr)
 
-    def tick(self, client_endpoint: sock.socket, address: sock._RetAddress):
+    def tick(self, client_endpoint: sock.socket, address: tuple):
         client_endpoint.send(utils.encode_data({"value": 1}, address))
 
-    def listen(self, client_endpoint: sock.socket, address: sock._RetAddress):
+    def listen(self, client_endpoint: sock.socket, address: tuple):
         while self.running:
             try:
                 header = client_endpoint.recv(env.HEADER_LENGTH)
@@ -78,5 +78,5 @@ if __name__ == "__main__":
     valid_apps = utils.applications_implemented()
     parser.add_argument("application", help=f"Valid applications: {valid_apps}")
     args = parser.parse_args()
-    mod = __import__(f"apps.{args.application}", fromlist=["App"])
-    app = getattr(mod, "App")(Server())
+    mod = __import__(f"apps.{args.application}", fromlist=["create_app"])
+    app = getattr(mod, "create_app")(Server())
