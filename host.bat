@@ -1,3 +1,3 @@
 @echo off
-python src\server.py %*
+python src\server.py canvas %*
 pause

@@ -1,52 +1,51 @@
+import threading, timeit, argparse, importlib, time
 import socket as sock
-import threading, timeit, argparse
+
 import env, utils
+from app import AppServer
 
 if env.IP == "": env.IP = sock.gethostname()
 
 class Server:
-    def __init__(self) -> None:
+    def __init__(self, Application) -> None:
         self.endpoint = sock.socket(sock.AF_INET, sock.SOCK_STREAM)
         self.endpoint.setsockopt(sock.SOL_SOCKET, sock.SO_REUSEADDR, 1)
         self.endpoint.bind((env.IP, env.PORT))
         self.endpoint.listen(env.MAX_SOCKETS)
-
-        print(f"Listening on {env.IP}:{env.PORT}")
+        
+        print(f"Server running at {env.IP}:{env.PORT}")
         self.running = True
         
-        self.state = {}
+        self.app: AppServer = Application(self)
         self.clients = {}
         self.accepting_thread = threading.Thread(target=self.accept_clients)
-        self.tick_loop()
+        self.accepting_thread.start()
+        self.app.start()
 
     def accept_clients(self):
         while self.running:
             client_endpoint, address = self.endpoint.accept()
-            print("Connection from", address[1])
+            address = address[0] + ":" + str(address[1])
+            print("Connection from", address)
 
-            client_endpoint.send(utils.encode_data(self.persistent_data))
             listening_thread = threading.Thread(target=self.listen, args=(client_endpoint, address))
             listening_thread.start()
 
             self.clients[address] = {
                 "endpoint": client_endpoint,
-                "thread": listening_thread,
-                "data": {}
+                "thread": listening_thread
             }
 
-    def tick_loop(self):
-        pre_t = timeit.default_timer()
-        while self.running:
-            delta = timeit.default_timer() - pre_t
-            if delta * env.TICK_RATE > 1:
-                pre_t = timeit.default_timer()
-                for addr, client in self.clients:
-                    self.tick(client["endpoint"], addr)
+    def broadcast(self, data: dict):
+        for client in self.clients.values():
+            self.send_to(client["endpoint"], data)
 
-    def tick(self, client_endpoint: sock.socket, address: tuple):
-        client_endpoint.send(utils.encode_data({"value": 1}, address))
+    def send_to(self, client_endpoint: sock.socket, data: dict):
+        message = utils.encode_data(data)
+        client_endpoint.send(message)
 
-    def listen(self, client_endpoint: sock.socket, address: tuple):
+    def listen(self, client_endpoint: sock.socket, address: str):
+        self.app.on_handshake(client_endpoint, address)
         while self.running:
             try:
                 header = client_endpoint.recv(env.HEADER_LENGTH)
@@ -61,10 +60,12 @@ class Server:
 
             _bytes = b""
             for _ in range(reads_required):
-                _bytes += self.endpoint.recv(env.BUFFER_SIZE)
-            _bytes += self.endpoint.recv(msg_len % env.BUFFER_SIZE)
+                _bytes += client_endpoint.recv(env.BUFFER_SIZE)
+            _bytes += client_endpoint.recv(msg_len % env.BUFFER_SIZE)
 
-            self.clients[address]["data"].append(utils.decode_message(_bytes))
+            data = utils.decode_message(_bytes)
+            data["sender"] = address
+            self.app.on_msg_recv(data)
 
     def shutdown(self):
         self.endpoint.shutdown(sock.SHUT_RDWR)
@@ -78,5 +79,7 @@ if __name__ == "__main__":
     valid_apps = utils.applications_implemented()
     parser.add_argument("application", help=f"Valid applications: {valid_apps}")
     args = parser.parse_args()
-    mod = __import__(f"apps.{args.application}", fromlist=["create_app"])
-    app = getattr(mod, "create_app")(Server())
+    module = importlib.import_module(f"apps.{args.application}")
+    App = module.__dict__[f"{args.application.capitalize()}Server"]
+    client = Server(App)
+    

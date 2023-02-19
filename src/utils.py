@@ -1,10 +1,15 @@
 import time, json, glob, re
 import env
 
+# TODO MAKE OWN BYTES FORMAT FOR ANY TYPE OF DATA
+
 def encode_data(data: dict):
     data["sent"] = time.time()
-    message = json.dumps(data)
-    header = bytes(f"{len(data):<{env.HEADER_LENGTH}}", "utf-8")
+    try:
+        message = bytes(json.dumps(data), "utf-8")
+    except Exception() as e:
+        print(e)
+    header = bytes(f"{len(message):<{env.HEADER_LENGTH}}", "utf-8")
     return header + message
 
 def decode_message(_bytes: bytes):
